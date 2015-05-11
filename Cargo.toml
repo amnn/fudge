@@ -1,0 +1,7 @@
+[package]
+name = "fudge"
+version = "0.1.0"
+authors = ["Ashok Menon <amenon94@gmail.com>"]
+
+[dependencies]
+rand = "0.3"
