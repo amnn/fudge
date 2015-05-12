@@ -165,7 +165,7 @@ impl VM {
                 '_' => self.delta = if self.pop() == 0 { E } else { W },
                 '|' => self.delta = if self.pop() == 0 { S } else { N },
 
-                '"'  => {
+                '"' => {
                     self.step();
                     let mut c = self.instr();
                     while c != '"' {
@@ -174,7 +174,13 @@ impl VM {
                     }
                 }
 
-                ':'  => {
+                'r' => {
+                    let Addr(i, j) = self.pc;
+                    self.stack.push(j);
+                    self.stack.push(i);
+                }
+
+                ':' => {
                     let x = self.pop();
                     self.stack.push(x);
                     self.stack.push(x);
@@ -187,46 +193,46 @@ impl VM {
                     self.stack.push(y);
                 }
 
-                '$'  => { self.pop(); }
+                '$' => { self.pop(); }
 
-                '.'  => {
+                '.' => {
                     let x = self.pop();
                     print!("{}", x);
                 }
 
-                ','  => {
+                ',' => {
                     let c = self.pop() as u8 as char;
                     print!("{}", c);
                 }
 
-                '&'  => {
+                '&' => {
                     let x = i64::from_str(&VM::input()).unwrap();
                     self.stack.push(x);
                 }
 
-                '~'  => {
+                '~' => {
                     let c = VM::input().as_bytes()[0] as i64;
                     self.stack.push(c);
                 }
 
-                'p'  => {
+                'p' => {
                     let y = self.pop();
                     let x = self.pop();
                     let v = self.pop();
                     self.put(Addr(x, y), v);
                  }
 
-                'g'  => {
+                'g' => {
                     let y = self.pop();
                     let x = self.pop();
                     let v = self.fetch(Addr(x, y));
                     self.stack.push(v);
                 }
 
-                '@'  => break 'eval,
-                ' '  => {}
+                '@' => break 'eval,
+                ' ' => {}
 
-                _    => {
+                _ => {
                     println!("*** Interrupt ***");
                     println!("Unrecognised Opcode Detected: {} @ {:?}",
                              i, self.pc);
