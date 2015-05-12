@@ -122,7 +122,7 @@ impl VM {
         self.mem[(j as usize) % HEIGHT][(i as usize) % WIDTH] = v;
     }
 
-    fn instr(& self) -> char    {self.fetch(self.pc) as u8 as char}
+    fn instr(& self) -> char    { self.fetch(self.pc) as u8 as char }
     fn jump(&mut self, a: Addr) { self.pc = a; }
     fn next(& self) -> Addr     { self.pc + self.delta }
     fn step(&mut self)          { let n = self.next(); self.jump(n); }
@@ -148,12 +148,29 @@ impl VM {
             })
         }
 
+        macro_rules! cond {
+            ($truept: expr, $falsept: expr) =>
+                (self.delta = if self.pop() == 0 { $falsept } else { $truept })
+        }
+
+        macro_rules! gather {
+            ($end: expr, $cont: expr) => (gather!($end, $cont, char));
+            ($end: expr, $cont: expr, $cast: ty) => ({
+                self.step();
+                let mut c = self.instr();
+                while c != $end {
+                    $cont.push(c as $cast);
+                    self.step(); c = self.instr();
+                }
+            })
+        }
+
         'eval: loop {
             let i = self.instr();
             match i {
-                '0'...'9' | 'a'... 'f' => {
-                    self.stack.push(i.to_digit(16).unwrap() as i64)
-                }
+                '0'...'9' | 'a'... 'f' =>
+                    self.stack.push(i.to_digit(16).unwrap() as i64),
+
                 '+' => binop!(Add::add),
                 '-' => binop!(Sub::sub),
                 '*' => binop!(Mul::mul),
@@ -177,28 +194,14 @@ impl VM {
                 '?' => self.delta = rand::random(),
                 '#' => self.step(),
 
-                '_' => self.delta = if self.pop() == 0 { E } else { W },
-                '|' => self.delta = if self.pop() == 0 { S } else { N },
+                '_' => cond!(W, E),
+                '|' => cond!(N, S),
 
-                '"' => {
-                    self.step();
-                    let mut c = self.instr();
-                    while c != '"' {
-                        self.stack.push(c as i64);
-                        self.step(); c = self.instr();
-                    }
-                }
+                '"' => gather!('"', self.stack, i64),
 
                 '[' => {
-                    self.step();
-                    let mut c    = self.instr();
                     let mut name = String::new();
-
-                    while c != ']' {
-                        name.push(c);
-                        self.step();
-                        c = self.instr();
-                    }
+                    gather!(']', name);
 
                     match self.symbols.get(&name) {
                         Some(&a) => {
