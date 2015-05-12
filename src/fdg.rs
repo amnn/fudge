@@ -1,6 +1,6 @@
 extern crate rand;
 
-use std::ops::Add;
+use std::ops::{Add, Sub, Mul, Div, Rem};
 use std::io;
 use std::str::FromStr;
 
@@ -124,42 +124,26 @@ impl VM {
     }
 
     pub fn run(&mut self) -> i64 {
+
+        macro_rules! binop {
+            ($op: expr) => ({
+                let y = self.pop();
+                let x = self.pop();
+                self.stack.push($op(x, y))
+            })
+        }
+
         'eval: loop {
             let i = self.instr();
             match i {
                 '0'...'9' | 'a'... 'f' => {
                     self.stack.push(i.to_digit(16).unwrap() as i64)
                 }
-
-                '+' => {
-                    let y = self.pop();
-                    let x = self.pop();
-                    self.stack.push(x + y);
-                 },
-
-                '-' => {
-                    let y = self.pop();
-                    let x = self.pop();
-                    self.stack.push(x - y);
-                }
-
-                '*' => {
-                    let y = self.pop();
-                    let x = self.pop();
-                    self.stack.push(x * y);
-                }
-
-                '/' => {
-                    let y = self.pop();
-                    let x = self.pop();
-                    self.stack.push(x / y)
-                 }
-
-                '%' => {
-                    let y = self.pop();
-                    let x = self.pop();
-                    self.stack.push(x % y);
-                }
+                '+' => binop!(Add::add),
+                '-' => binop!(Sub::sub),
+                '*' => binop!(Mul::mul),
+                '/' => binop!(Div::div),
+                '%' => binop!(Rem::rem),
 
                 '`' => {
                     let y = self.pop();
