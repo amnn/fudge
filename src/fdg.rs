@@ -3,6 +3,7 @@ extern crate rand;
 use std::ops::{Add, Sub, Mul, Div, Rem};
 use std::io;
 use std::str::FromStr;
+use std::collections::HashMap;
 
 use std::io::prelude::*;
 use std::fs::File;
@@ -56,11 +57,14 @@ impl Add<Delta> for Addr {
 const WIDTH  : usize = 80;
 const HEIGHT : usize = 25;
 
+type SymbolTable = HashMap<String, Addr>;
+
 pub struct VM {
     stack: Vec<i64>,
     mem:   [[i64; WIDTH]; HEIGHT],
     pc:    Addr,
-    delta: Delta
+    delta: Delta,
+    symbols: SymbolTable
 }
 
 impl VM {
@@ -68,7 +72,8 @@ impl VM {
         VM {
             stack: vec![],
             mem:   [[b' ' as i64; WIDTH]; HEIGHT],
-            pc:    Addr(0, 0), delta: E
+            pc:    Addr(0, 0), delta: E,
+            symbols: HashMap::new()
         }
     }
 
@@ -76,13 +81,29 @@ impl VM {
         let mut vm = VM::new();
 
         let mut i = 0; let mut j = 0;
+        let mut sym : Option<String> = None;
+
         for b in f.bytes() {
             match b {
-                Ok(b'\n') => { j+= 1; i = 0; }
+                Ok(b'\n') => { j += 1; i = 0; sym = None; }
                 Ok(c) => {
-                    if c == b'\n' { j += 1; i = 0; continue }
-                    if i >= WIDTH { j += 1; i = 0; }
-                    vm.put(Addr(i as i64, j as i64), c as i64);
+                    if i >= WIDTH { j += 1; i = 0; sym = None; }
+
+                    let a = Addr(i as i64, j as i64);
+                    vm.put(a, c as i64);
+
+                    match c {
+                        b'{' if sym.is_none() =>
+                            { sym = Some(String::new()); }
+                        b'}' if sym.is_some() =>
+                            { vm.symbols.insert(sym.take().unwrap(), a + E); }
+                        _ => {
+                            for name in sym.iter_mut() {
+                                name.push(c as char)
+                            };
+                        }
+                    }
+
                     i += 1;
                 }
 
@@ -101,17 +122,11 @@ impl VM {
         self.mem[(j as usize) % HEIGHT][(i as usize) % WIDTH] = v;
     }
 
-    fn instr(& self) -> char {
-        self.fetch(self.pc) as u8 as char
-    }
-
-    fn step(&mut self) {
-        self.pc = self.pc + self.delta;
-    }
-
-    fn pop(&mut self) -> i64 {
-        self.stack.pop().unwrap_or(0)
-    }
+    fn instr(& self) -> char    {self.fetch(self.pc) as u8 as char}
+    fn jump(&mut self, a: Addr) { self.pc = a; }
+    fn next(& self) -> Addr     { self.pc + self.delta }
+    fn step(&mut self)          { let n = self.next(); self.jump(n); }
+    fn pop(&mut self) -> i64    { self.stack.pop().unwrap_or(0) }
 
     #[allow(unused_must_use)]
     fn input() -> String {
@@ -174,10 +189,44 @@ impl VM {
                     }
                 }
 
+                '[' => {
+                    self.step();
+                    let mut c    = self.instr();
+                    let mut name = String::new();
+
+                    while c != ']' {
+                        name.push(c);
+                        self.step();
+                        c = self.instr();
+                    }
+
+                    match self.symbols.get(&name) {
+                        Some(&a) => {
+                            let Addr(ri, rj) = self.next();
+                            self.stack.push(ri);
+                            self.stack.push(rj);
+
+                            let Addr(i, j) = a;
+                            self.stack.push(i);
+                            self.stack.push(j);
+                        }
+                        None => {
+                            println!("No such symbol >> {} <<", name);
+                            break 'eval;
+                        }
+                    }
+                }
+
                 'r' => {
                     let Addr(i, j) = self.pc;
-                    self.stack.push(j);
                     self.stack.push(i);
+                    self.stack.push(j);
+                }
+
+                'j' => {
+                    let j = self.pop();
+                    let i = self.pop();
+                    self.jump(Addr(i, j));
                 }
 
                 ':' => {
