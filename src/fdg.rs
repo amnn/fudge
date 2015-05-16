@@ -1,7 +1,7 @@
 extern crate rand;
 
 use std::ops::{Add, Sub, Mul, Div, Rem};
-use std::io;
+use std::{io, ptr};
 use std::str::FromStr;
 use std::collections::HashMap;
 
@@ -60,19 +60,21 @@ const HEIGHT : usize = 25;
 type SymbolTable = HashMap<String, Addr>;
 
 pub struct VM {
-    stack: Vec<i64>,
-    mem:   [[i64; WIDTH]; HEIGHT],
-    pc:    Addr,
-    delta: Delta,
+    stack:   Vec<i64>,
+    mem:     [[i64; WIDTH]; HEIGHT],
+    pc:      Addr,
+    target:  Option<Addr>,
+    delta:   Delta,
     symbols: SymbolTable
 }
 
 impl VM {
     pub fn new() -> Self {
         VM {
-            stack: vec![],
-            mem:   [[b' ' as i64; WIDTH]; HEIGHT],
-            pc:    Addr(0, 0), delta: E,
+            stack:   vec![],
+            mem:     [[b' ' as i64; WIDTH]; HEIGHT],
+            pc:      Addr(0, 0), delta: E,
+            target:  None,
             symbols: HashMap::new()
         }
     }
@@ -123,10 +125,16 @@ impl VM {
     }
 
     fn instr(& self) -> char    { self.fetch(self.pc) as u8 as char }
-    fn jump(&mut self, a: Addr) { self.pc = a; }
+    fn jump(&mut self, a: Addr) { self.target = Some(a); }
     fn next(& self) -> Addr     { self.pc + self.delta }
-    fn step(&mut self)          { let n = self.next(); self.jump(n); }
     fn pop(&mut self) -> i64    { self.stack.pop().unwrap_or(0) }
+
+    fn step(&mut self) {
+        self.pc =
+            self.target
+                .take()
+                .unwrap_or(self.next());
+    }
 
     #[allow(unused_must_use)]
     fn input() -> String {
@@ -134,8 +142,21 @@ impl VM {
         let mut buf = String::new();
 
         stdin.read_line(&mut buf);
-
         buf
+    }
+
+    fn reserve(&mut self, i : usize, n : usize) {
+        let l = self.stack.len();
+        self.stack.reserve(n);
+        let p = self.stack.as_mut_ptr();
+
+        unsafe {
+            ptr::copy(
+                p.offset(i       as isize),
+                p.offset((i + n) as isize),
+                l - i);
+            self.stack.set_len(l + n);
+        }
     }
 
     pub fn run(&mut self) -> i64 {
@@ -205,10 +226,6 @@ impl VM {
 
                     match self.symbols.get(&name) {
                         Some(&a) => {
-                            let Addr(ri, rj) = self.next();
-                            self.stack.push(ri);
-                            self.stack.push(rj);
-
                             let Addr(i, j) = a;
                             self.stack.push(i);
                             self.stack.push(j);
@@ -221,7 +238,7 @@ impl VM {
                 }
 
                 'r' => {
-                    let Addr(i, j) = self.pc;
+                    let Addr(i, j) = self.next();
                     self.stack.push(i);
                     self.stack.push(j);
                 }
@@ -229,6 +246,20 @@ impl VM {
                 'j' => {
                     let j = self.pop();
                     let i = self.pop();
+                    self.jump(Addr(i, j));
+                }
+
+                'C' => {
+                    let j = self.pop();
+                    let i = self.pop();
+                    let n = self.pop() as usize;
+
+                    let Addr(ri, rj) = self.next();
+                    let ret = self.stack.len() - n;
+
+                    self.reserve(ret, 2);
+                    self.stack[ret]     = ri;
+                    self.stack[ret + 1] = rj;
                     self.jump(Addr(i, j));
                 }
 

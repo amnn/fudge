@@ -1,2 +1,2 @@
-[Hello]j0"!dlroW">:#,_@
-{Hello}0" ,olleH">:#,_j
+0a"!dlroW ,olleH"f[pr]C@
+{pr} >:#,_$j
